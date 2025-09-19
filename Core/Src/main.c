@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "rtc.h"
 #include "usart.h"
 #include "gpio.h"
 #include <stdio.h>
@@ -57,6 +58,10 @@ SystemState_t current_state = STATE_ACTIVE;
 uint8_t cli_buffer[10];
 uint8_t cli_idx = 0;
 uint8_t g_uart_rx_char; 
+
+//RTC 
+RTC_TimeTypeDef sTime = {0};
+RTC_DateTypeDef sDate = {0};
 /* USER CODE END PV */
 
 #define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
@@ -84,6 +89,7 @@ void process_cli(void) {
     }
   }
 }
+
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
@@ -125,15 +131,29 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART2_UART_Init();
+  MX_RTC_Init();
   /* USER CODE BEGIN 2 */
-	printf("Sistema iniciado. Display LIGADO.\r\n");
+	
+	
+	RTC_TimeTypeDef sTime_set = {0};
+  RTC_DateTypeDef sDate_set = {0};
+
+  sTime_set.Hours = 10;
+  sTime_set.Minutes = 30;
+  sTime_set.Seconds = 00;
+  HAL_RTC_SetTime(&hrtc, &sTime_set, RTC_FORMAT_BIN);
+
+  sDate_set.WeekDay = RTC_WEEKDAY_TUESDAY;
+  sDate_set.Month = RTC_MONTH_MAY;
+  sDate_set.Date = 21;
+  sDate_set.Year = 25; // O ano é 2025
+  HAL_RTC_SetDate(&hrtc, &sDate_set, RTC_FORMAT_BIN);
+
+  printf("Sistema iniciado. Display LIGADO.\r\n");
+  printf("RTC configurado para 10:30:00 - 19/09/25\r\n\n");
 	HAL_UART_Receive_IT(&huart2, &g_uart_rx_char, 1);
   /* USER CODE END 2 */
 
-  // 2. Desliga o circuito de detecção de toque
- 
-  
-  current_state = STATE_ACTIVE;
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
@@ -141,36 +161,32 @@ int main(void)
     /* USER CODE END WHILE */
 		if (current_state == STATE_ACTIVE) {
       // --- MODO ATIVO ---
-      HAL_GPIO_TogglePin(LED_STATUS_GPIO_Port, LED_STATUS_Pin);
-      HAL_Delay(500); // Pisca o LED para indicar que está ativo
+      HAL_GPIO_TogglePin(LED_STATUS_GPIO_Port, LED_STATUS_Pin); 
+      
+      // A cada 5 segundos, imprime a hora atual
+      HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
+      HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN); // É importante ler a data também para limpar as flags
+      printf("MODO ATIVO - Hora: %02d:%02d:%02d\r\n", sTime.Hours, sTime.Minutes, sTime.Seconds);
 
-      // Verifica por comandos CLI
-      process_cli();
+      HAL_Delay(5050); // Alterado para 5 segundos (ao invés de 500ms)
 
-      // Verifica se o botão de dormir foi pressionado
+      // (A checagem do g_go_to_sleep_request pela interrupção da UART/Botão continua funcionando)
       if (g_go_to_sleep_request) {
-        g_go_to_sleep_request = 0; // Limpa a flag
-        current_state = STATE_STOPPED; // Muda para o estado de parada
+        g_go_to_sleep_request = 0; 
+        current_state = STATE_STOPPED;
       }
 
     } else if (current_state == STATE_STOPPED) {
       // --- SEQUÊNCIA PARA ENTRAR EM MODO STOP ---
-      printf("Entrando em modo Stop. Toque na tela para acordar.\r\n");
+      printf("Entrando em modo Stop. Toque na tela para acordar.\r\n\n");
       
-      // Garante que a mensagem foi enviada
       HAL_Delay(100); 
 
-      // 1. Desliga o LED de status
-      HAL_GPIO_WritePin(LED_STATUS_GPIO_Port, LED_STATUS_Pin, GPIO_PIN_SET);
+      HAL_GPIO_WritePin(LED_STATUS_GPIO_Port, LED_STATUS_Pin, GPIO_PIN_SET); // Desliga LED
+      HAL_GPIO_WritePin(DISPLAY_PWR_CTRL_GPIO_Port, DISPLAY_PWR_CTRL_Pin, GPIO_PIN_RESET); // Desliga Display
+      HAL_GPIO_WritePin(HAB_TOUCH_GPIO_Port, HAB_TOUCH_Pin, GPIO_PIN_RESET); // Liga detecção de toque
       
-      // 2. Desliga a alimentação do display
-      HAL_GPIO_WritePin(DISPLAY_PWR_CTRL_GPIO_Port, DISPLAY_PWR_CTRL_Pin, GPIO_PIN_RESET);
-      
-      // 3. Habilita o circuito de detecção de toque (ligando seu GND)
-      HAL_GPIO_WritePin(HAB_TOUCH_GPIO_Port, HAB_TOUCH_Pin, GPIO_PIN_RESET);
-      
-      // Limpa a flag de wake-up para garantir que não acordemos imediatamente
-      __HAL_PWR_CLEAR_FLAG(PWR_FLAG_WUF1); // Limpa as flags de wake-up
+      __HAL_PWR_CLEAR_FLAG(PWR_FLAG_WUF1); 
       g_wake_up_request = 0;
 
       // ********** ENTRANDO EM MODO STOP **********
@@ -179,17 +195,25 @@ int main(void)
       
       // --- PONTO DE RETORNO APÓS ACORDAR ---
 
-      // ** CRÍTICO: ** Reconfigura o clock do sistema
       SystemClock_Config();
       
-      // --- SEQUÊNCIA AO ACORDAR ---
-      // 1. Desabilita o circuito de detecção de toque para economizar energia e evitar interrupções
-      HAL_GPIO_WritePin(HAB_TOUCH_GPIO_Port, HAB_TOUCH_Pin, GPIO_PIN_SET);
+      // Re-inicializa a UART (necessário após reconfigurar o clock pós-Stop)
+      MX_USART2_UART_Init();
       
-      // 2. Liga a alimentação do display
+      // --- SEQUÊNCIA AO ACORDAR ---
+      HAL_GPIO_WritePin(HAB_TOUCH_GPIO_Port, HAB_TOUCH_Pin, GPIO_PIN_SET);
       HAL_GPIO_WritePin(DISPLAY_PWR_CTRL_GPIO_Port, DISPLAY_PWR_CTRL_Pin, GPIO_PIN_SET);
       
-      printf("\r\nSistema acordou do modo Stop!\r\n");
+      printf("\r\n>>> SISTEMA ACORDOU DO MODO STOP! <<<\r\n");
+
+      // **** VALIDAÇÃO DO RTC ****
+      HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
+      HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
+      printf(">>> HORA ATUAL (RTC): %02d:%02d:%02d <<<\r\n\n", sTime.Hours, sTime.Minutes, sTime.Seconds);
+      // **************************
+      
+      // Re-arma a interrupção da UART
+      HAL_UART_Receive_IT(&huart2, &g_uart_rx_char, 1);
 
       // Muda para o estado ativo
       current_state = STATE_ACTIVE;
@@ -220,9 +244,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
         // Compara o comando
         if (strcmp((char*)cli_buffer, "OFF") == 0) 
         {
-          // ATENÇÃO: Estamos em um contexto de interrupção.
-          // Não podemos usar printf() ou HAL_Delay() aqui. Apenas definimos a flag.
-          // O loop principal (no estado ATIVO) verá esta flag e fará o resto.
           if (current_state == STATE_ACTIVE) {
              g_go_to_sleep_request = 1;
           }
@@ -232,28 +253,24 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     } 
     else 
     {
-      // Adiciona caractere ao buffer se não for um fim de linha
       if (cli_idx < sizeof(cli_buffer) - 1) 
       {
         cli_buffer[cli_idx++] = g_uart_rx_char;
       }
     }
     
-    // Re-arma a interrupção para receber o próximo byte
+
     HAL_UART_Receive_IT(&huart2, &g_uart_rx_char, 1);
   }
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
-  if (GPIO_Pin == GPIO_PIN_13) { // Botão B1 (PC13) foi pressionado
-    // Este botão só tem efeito se estivermos no modo ATIVO
+  if (GPIO_Pin == GPIO_PIN_13) { 
     if (current_state == STATE_ACTIVE) {
       g_go_to_sleep_request = 1;
     }
   } 
-  else if (GPIO_Pin == GPIO_PIN_7) { // Sinal de wake-up (PC7) foi ativado
-    // Este sinal só nos interessa quando estamos para entrar ou já em modo STOP.
-    // Apenas definimos a flag, o processamento ocorre no loop principal ao acordar.
+  else if (GPIO_Pin == GPIO_PIN_7) { 
     g_wake_up_request = 1;
   }
 }
@@ -269,10 +286,15 @@ void SystemClock_Config(void)
 
   __HAL_FLASH_SET_LATENCY(FLASH_LATENCY_1);
 
+  /** Configure LSE Drive Capability
+  */
+  __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_LOW);
+
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSE|RCC_OSCILLATORTYPE_HSI48;
+  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
   RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
 
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)

@@ -58,11 +58,26 @@ void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(HAB_TOUCH_GPIO_Port, HAB_TOUCH_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PC13 SINAL_DISPLAY_Pin */
-  GPIO_InitStruct.Pin = GPIO_PIN_13|SINAL_DISPLAY_Pin;
+  /* --- INÍCIO DA CORREÇÃO --- */
+
+  /* 1. Configura o Botão do Usuário (B1) em PC13 */
+  /* O hardware da placa puxa para GND quando pressionado. */
+  /* Portanto, precisamos de PULLUP e gatilho na BORDA DE DESCIDA (Falling Edge) */
+  GPIO_InitStruct.Pin = GPIO_PIN_13;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING; // Alterado de RISING para FALLING
+  GPIO_InitStruct.Pull = GPIO_PULLUP;         // Alterado de PULLDOWN para PULLUP
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /* 2. Configura o Sinal de Wake-up do Display (PC7) */
+  /* Este sinal vem do seu comparador (0V -> 3.3V) */
+  /* Portanto, precisamos de PULLDOWN e gatilho na BORDA DE SUBIDA (Rising Edge) */
+  GPIO_InitStruct.Pin = SINAL_DISPLAY_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /* --- FIM DA CORREÇÃO --- */
+
 
   /*Configure GPIO pin : DISPLAY_PWR_CTRL_Pin */
   GPIO_InitStruct.Pin = DISPLAY_PWR_CTRL_Pin;

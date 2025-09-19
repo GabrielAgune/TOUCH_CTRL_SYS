@@ -169,7 +169,6 @@ void USART2_IRQHandler(void)
   /* USER CODE END USART2_IRQn 1 */
 }
 
-
 /* USER CODE BEGIN 1 */
 
 /* USER CODE END 1 */
