@@ -1,0 +1,28 @@
+--cpu Cortex-M0+
+"touch_ctrl_sys\startup_stm32c071xx.o"
+"touch_ctrl_sys\main.o"
+"touch_ctrl_sys\gpio.o"
+"touch_ctrl_sys\usart.o"
+"touch_ctrl_sys\stm32c0xx_it.o"
+"touch_ctrl_sys\stm32c0xx_hal_msp.o"
+"touch_ctrl_sys\stm32c0xx_hal.o"
+"touch_ctrl_sys\stm32c0xx_hal_cortex.o"
+"touch_ctrl_sys\stm32c0xx_hal_rcc.o"
+"touch_ctrl_sys\stm32c0xx_hal_rcc_ex.o"
+"touch_ctrl_sys\stm32c0xx_hal_flash.o"
+"touch_ctrl_sys\stm32c0xx_hal_flash_ex.o"
+"touch_ctrl_sys\stm32c0xx_hal_gpio.o"
+"touch_ctrl_sys\stm32c0xx_hal_dma.o"
+"touch_ctrl_sys\stm32c0xx_hal_dma_ex.o"
+"touch_ctrl_sys\stm32c0xx_hal_pwr.o"
+"touch_ctrl_sys\stm32c0xx_hal_pwr_ex.o"
+"touch_ctrl_sys\stm32c0xx_hal_exti.o"
+"touch_ctrl_sys\stm32c0xx_hal_tim.o"
+"touch_ctrl_sys\stm32c0xx_hal_tim_ex.o"
+"touch_ctrl_sys\stm32c0xx_hal_uart.o"
+"touch_ctrl_sys\stm32c0xx_hal_uart_ex.o"
+"touch_ctrl_sys\system_stm32c0xx.o"
+--library_type=microlib --strict --scatter "TOUCH_CTRL_SYS\TOUCH_CTRL_SYS.sct"
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list "TOUCH_CTRL_SYS.map" -o TOUCH_CTRL_SYS\TOUCH_CTRL_SYS.axf
